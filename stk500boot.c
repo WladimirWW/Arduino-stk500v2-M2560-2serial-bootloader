@@ -97,7 +97,9 @@ LICENSE:
 //*	The correct behavior is for the STK500V2 to accept the PC's sequence number, and echo it back for the reply message.
 //************************************************************************
 //*	Issue 181: added watch dog timmer support
-
+#ifndef __AVR_ATmega2560__
+	#define __AVR_ATmega2560__
+#endif
 #include	<inttypes.h>
 #include	<avr/io.h>
 #include	<avr/interrupt.h>
@@ -227,7 +229,7 @@ LICENSE:
 		#define	UART2_DATA_REG				UDR0
 		#define	UART2_DOUBLE_SPEED			U2X0
 
-		// Pins to activate uart 2 may be different D43 > PL6, D42 > PL7, current PL7
+		// Pins to activate uart 2 may be different: pin 41 > D43 > PL6 / pin42 > D42 > PL7, current PL7
 		#define UART2_ACT_PORT PORTL
 		#define UART2_ACT_DDR DDRL
 		#define UART2_ACT_PIN PINL7
