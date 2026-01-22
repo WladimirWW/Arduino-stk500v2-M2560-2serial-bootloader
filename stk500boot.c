@@ -2,7 +2,6 @@
 Title:     STK500v2 compatible bootloader
            Modified for Wiring board ATMega128-16MHz
 Author:    Peter Fleury <pfleury@gmx.ch>   http://jump.to/fleury
-File:      $Id: stk500boot.c,v 1.11 2006/06/25 12:39:17 peter Exp $
 Compiler:  avr-gcc 3.4.5 or 4.1 / avr-libc 1.4.3
 Hardware:  All AVRs with bootloader support, tested with ATmega8
 License:   GNU General Public License
@@ -96,10 +95,8 @@ LICENSE:
 //*	The STK500V2 bootloader is comparing the seqNum to 1 or the current sequence 
 //*	(IE: Requiring the sequence to be 1 or match seqNum before continuing).  
 //*	The correct behavior is for the STK500V2 to accept the PC's sequence number, and echo it back for the reply message.
-#define	_FIX_ISSUE_505_
 //************************************************************************
 //*	Issue 181: added watch dog timmer support
-#define	_FIX_ISSUE_181_
 
 #include	<inttypes.h>
 #include	<avr/io.h>
@@ -113,8 +110,7 @@ LICENSE:
 #include	"command.h"
 
 
-#if defined(_MEGA_BOARD_) || defined(_BOARD_AMBER128_) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__) \
-	|| defined(__AVR_ATmega2561__) || defined(__AVR_ATmega1284P__) || defined(ENABLE_MONITOR)
+#if defined(__AVR_ATmega2560__) || defined(ENABLE_MONITOR)
 	#undef		ENABLE_MONITOR
 	#define		ENABLE_MONITOR
 	static void	RunMonitor(void);
@@ -127,20 +123,6 @@ LICENSE:
 	#define EEMWE   2
 #endif
 
-//#define	_DEBUG_SERIAL_
-//#define	_DEBUG_WITH_LEDS_
-
-
-/*
- * Uncomment the following lines to save code space
- */
-//#define	REMOVE_PROGRAM_LOCK_BIT_SUPPORT		// disable program lock bits
-//#define	REMOVE_BOOTLOADER_LED				// no LED to show active bootloader
-//#define	REMOVE_CMD_SPI_MULTI				// disable processing of SPI_MULTI commands, Remark this line for AVRDUDE <Worapoht>
-//
-
-
-
 //************************************************************************
 //*	LED on pin "PROGLED_PIN" on port "PROGLED_PORT"
 //*	indicates that bootloader is active
@@ -148,80 +130,11 @@ LICENSE:
 //************************************************************************
 #define		BLINK_LED_WHILE_WAITING
 
-#ifdef _MEGA_BOARD_
-	#define PROGLED_PORT	PORTB
-	#define PROGLED_DDR		DDRB
-	#define PROGLED_PIN		PINB7
-#elif defined( _BOARD_AMBER128_ )
-	//*	this is for the amber 128 http://www.soc-robotics.com/
-	//*	onbarod led is PORTE4
-	#define PROGLED_PORT	PORTD
-	#define PROGLED_DDR		DDRD
-	#define PROGLED_PIN		PINE7
-#elif defined( _CEREBOTPLUS_BOARD_ ) || defined(_CEREBOT_II_BOARD_)
-	//*	this is for the Cerebot 2560 board and the Cerebot-ii
-	//*	onbarod leds are on PORTE4-7
-	#define PROGLED_PORT	PORTE
-	#define PROGLED_DDR		DDRE
-	#define PROGLED_PIN		PINE7
-#elif defined( _PENGUINO_ )
-	//*	this is for the Penguino
-	//*	onbarod led is PORTE4
-	#define PROGLED_PORT	PORTC
-	#define PROGLED_DDR		DDRC
-	#define PROGLED_PIN		PINC6
-#elif defined( _ANDROID_2561_ ) || defined( __AVR_ATmega2561__ )
-	//*	this is for the Boston Android 2561
-	//*	onbarod led is PORTE4
-	#define PROGLED_PORT	PORTA
-	#define PROGLED_DDR		DDRA
-	#define PROGLED_PIN		PINA3
-#elif defined( _BOARD_MEGA16 )
-	//*	onbarod led is PORTA7
-	#define PROGLED_PORT	PORTA
-	#define PROGLED_DDR		DDRA
-	#define PROGLED_PIN		PINA7
-	#define UART_BAUDRATE_DOUBLE_SPEED 0
 
-#elif defined( _BOARD_BAHBOT_ )
-	//*	dosent have an onboard LED but this is what will probably be added to this port
-	#define PROGLED_PORT	PORTB
-	#define PROGLED_DDR		DDRB
-	#define PROGLED_PIN		PINB0
+#define PROGLED_PORT	PORTG
+#define PROGLED_DDR		DDRG
+#define PROGLED_PIN		PING2
 
-#elif defined( _BOARD_ROBOTX_ )
-	#define PROGLED_PORT	PORTB
-	#define PROGLED_DDR		DDRB
-	#define PROGLED_PIN		PINB6
-#elif defined( _BOARD_CUSTOM1284_BLINK_B0_ )
-	#define PROGLED_PORT	PORTB
-	#define PROGLED_DDR		DDRB
-	#define PROGLED_PIN		PINB0
-#elif defined( _BOARD_CUSTOM1284_ )
-	#define PROGLED_PORT	PORTD
-	#define PROGLED_DDR		DDRD
-	#define PROGLED_PIN		PIND5
-#elif defined( _AVRLIP_ )
-	#define PROGLED_PORT	PORTB
-	#define PROGLED_DDR		DDRB
-	#define PROGLED_PIN		PINB5
-#elif defined( _BOARD_STK500_ )
-	#define PROGLED_PORT	PORTA
-	#define PROGLED_DDR		DDRA
-	#define PROGLED_PIN		PINA7
-#elif defined( _BOARD_STK502_ )
-	#define PROGLED_PORT	PORTB
-	#define PROGLED_DDR		DDRB
-	#define PROGLED_PIN		PINB5
-#elif defined( _BOARD_STK525_ )
-	#define PROGLED_PORT	PORTB
-	#define PROGLED_DDR		DDRB
-	#define PROGLED_PIN		PINB7
-#else
-	#define PROGLED_PORT	PORTG
-	#define PROGLED_DDR		DDRG
-	#define PROGLED_PIN		PING2
-#endif
 
 
 
@@ -245,11 +158,7 @@ LICENSE:
  *  Enable (1) or disable (0) USART double speed operation
  */
 #ifndef UART_BAUDRATE_DOUBLE_SPEED
-	#if defined (__AVR_ATmega32__)
-		#define UART_BAUDRATE_DOUBLE_SPEED 0
-	#else
 		#define UART_BAUDRATE_DOUBLE_SPEED 1
-	#endif
 #endif
 
 /*
@@ -277,99 +186,59 @@ LICENSE:
 /*
  * Signature bytes are not available in avr-gcc io_xxx.h
  */
-#if defined (__AVR_ATmega8__)
-	#define SIGNATURE_BYTES 0x1E9307
-#elif defined (__AVR_ATmega16__)
-	#define SIGNATURE_BYTES 0x1E9403
-#elif defined (__AVR_ATmega32__)
-	#define SIGNATURE_BYTES 0x1E9502
-#elif defined (__AVR_ATmega8515__)
-	#define SIGNATURE_BYTES 0x1E9306
-#elif defined (__AVR_ATmega8535__)
-	#define SIGNATURE_BYTES 0x1E9308
-#elif defined (__AVR_ATmega162__)
-	#define SIGNATURE_BYTES 0x1E9404
-#elif defined (__AVR_ATmega128__)
-	#define SIGNATURE_BYTES 0x1E9702
-#elif defined (__AVR_ATmega1280__)
-	#define SIGNATURE_BYTES 0x1E9703
-#elif defined (__AVR_ATmega2560__)
+#if defined (__AVR_ATmega2560__)
 	#define SIGNATURE_BYTES 0x1E9801
-#elif defined (__AVR_ATmega2561__)
-	#define SIGNATURE_BYTES 0x1e9802
-#elif defined (__AVR_ATmega1284P__)
-	#define SIGNATURE_BYTES 0x1e9705
-#elif defined (__AVR_ATmega640__)
-	#define SIGNATURE_BYTES  0x1e9608
-#elif defined (__AVR_ATmega64__)
-	#define SIGNATURE_BYTES  0x1E9602
-#elif defined (__AVR_ATmega169__)
-	#define SIGNATURE_BYTES  0x1e9405
-#elif defined (__AVR_AT90USB1287__)
-	#define SIGNATURE_BYTES  0x1e9782
 #else
 	#error "no signature definition for MCU available"
 #endif
 
+	/*
+	Serial 0 (to USB)
+	 RX: D0 (PE0) pin.2
+	 TX: D1 (PE1) pin.3
 
-#if defined(_BOARD_ROBOTX_) || defined(__AVR_AT90USB1287__) || defined(__AVR_AT90USB1286__)
-	#define	UART_BAUD_RATE_LOW			UBRR1L
-	#define	UART_STATUS_REG				UCSR1A
-	#define	UART_CONTROL_REG			UCSR1B
-	#define	UART_ENABLE_TRANSMITTER		TXEN1
-	#define	UART_ENABLE_RECEIVER		RXEN1
-	#define	UART_TRANSMIT_COMPLETE		TXC1
-	#define	UART_RECEIVE_COMPLETE		RXC1
-	#define	UART_DATA_REG				UDR1
-	#define	UART_DOUBLE_SPEED			U2X1
+	Serial 2 (to ESP8266)
+	 RX: D17 (PH0) pin.12
+	 TX: D16 (PH1) pin.13
 
-#elif defined(__AVR_ATmega8__) || defined(__AVR_ATmega16__) || defined(__AVR_ATmega32__) \
-	|| defined(__AVR_ATmega8515__) || defined(__AVR_ATmega8535__)
-	/* ATMega8 with one USART */
-	#define	UART_BAUD_RATE_LOW			UBRRL
-	#define	UART_STATUS_REG				UCSRA
-	#define	UART_CONTROL_REG			UCSRB
-	#define	UART_ENABLE_TRANSMITTER		TXEN
-	#define	UART_ENABLE_RECEIVER		RXEN
-	#define	UART_TRANSMIT_COMPLETE		TXC
-	#define	UART_RECEIVE_COMPLETE		RXC
-	#define	UART_DATA_REG				UDR
-	#define	UART_DOUBLE_SPEED			U2X
+	UART2_ACTIVE: D42 (PL7) pin.42
+	Needs 0.1uF capacitor between Serial 2 DTR and Reset pin.
+	*/
 
-#elif defined(__AVR_ATmega64__) || defined(__AVR_ATmega128__) || defined(__AVR_ATmega162__) \
-	 || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__) || defined(__AVR_ATmega2561__)
-	/* ATMega with two USART, use UART0 */
-	#define	UART_BAUD_RATE_LOW			UBRR0L
-	#define	UART_STATUS_REG				UCSR0A
-	#define	UART_CONTROL_REG			UCSR0B
-	#define	UART_ENABLE_TRANSMITTER		TXEN0
-	#define	UART_ENABLE_RECEIVER		RXEN0
-	#define	UART_TRANSMIT_COMPLETE		TXC0
-	#define	UART_RECEIVE_COMPLETE		RXC0
-	#define	UART_DATA_REG				UDR0
-	#define	UART_DOUBLE_SPEED			U2X0
-#elif defined(UBRR0L) && defined(UCSR0A) && defined(TXEN0)
-	/* ATMega with two USART, use UART0 */
-	#define	UART_BAUD_RATE_LOW			UBRR0L
-	#define	UART_STATUS_REG				UCSR0A
-	#define	UART_CONTROL_REG			UCSR0B
-	#define	UART_ENABLE_TRANSMITTER		TXEN0
-	#define	UART_ENABLE_RECEIVER		RXEN0
-	#define	UART_TRANSMIT_COMPLETE		TXC0
-	#define	UART_RECEIVE_COMPLETE		RXC0
-	#define	UART_DATA_REG				UDR0
-	#define	UART_DOUBLE_SPEED			U2X0
-#elif defined(UBRRL) && defined(UCSRA) && defined(UCSRB) && defined(TXEN) && defined(RXEN)
-	//* catch all
-	#define	UART_BAUD_RATE_LOW			UBRRL
-	#define	UART_STATUS_REG				UCSRA
-	#define	UART_CONTROL_REG			UCSRB
-	#define	UART_ENABLE_TRANSMITTER		TXEN
-	#define	UART_ENABLE_RECEIVER		RXEN
-	#define	UART_TRANSMIT_COMPLETE		TXC
-	#define	UART_RECEIVE_COMPLETE		RXC
-	#define	UART_DATA_REG				UDR
-	#define	UART_DOUBLE_SPEED			U2X
+#if defined(__AVR_ATmega2560__)
+		/* ATMega with two USART, use UART0 + UART2 */
+		#define	UART_BAUD_RATE_LOW			UBRR2L
+		#define	UART_STATUS_REG				UCSR2A
+		#define	UART_CONTROL_REG			UCSR2B
+		#define	UART_ENABLE_TRANSMITTER		TXEN2
+		#define	UART_ENABLE_RECEIVER		RXEN2
+		#define	UART_TRANSMIT_COMPLETE		TXC2
+		#define	UART_RECEIVE_COMPLETE		RXC2
+		#define	UART_DATA_REG				UDR2
+		#define	UART_DOUBLE_SPEED			U2X2
+
+		#define	UART2_BAUD_RATE_LOW			UBRR0L
+		#define	UART2_STATUS_REG			UCSR0A
+		#define	UART2_CONTROL_REG			UCSR0B
+		#define	UART2_ENABLE_TRANSMITTER	TXEN0
+		#define	UART2_ENABLE_RECEIVER		RXEN0
+		#define	UART2_TRANSMIT_COMPLETE		TXC0
+		#define	UART2_RECEIVE_COMPLETE		RXC0
+		#define	UART2_DATA_REG				UDR0
+		#define	UART2_DOUBLE_SPEED			U2X0
+
+		// Pins to activate uart 2 may be different D43 > PL6, D42 > PL7, current PL7
+		#define UART2_ACT_PORT PORTL
+		#define UART2_ACT_DDR DDRL
+		#define UART2_ACT_PIN PINL7
+		#define UART2_ACT_PINP PINL
+		
+		// Just for debug UART2_ACTIVE
+		#define DLED 		0
+		#define DLED_PORT PORTB
+		#define DLED_DDR DDRB
+		#define DLED_PIN PINB6
+		#define DLED_PINP PINB
 #else
 	#error "no UART definition for MCU available"
 #endif
@@ -379,11 +248,7 @@ LICENSE:
 /*
  * Macro to calculate UBBR from XTAL and baudrate
  */
-#if defined(__AVR_ATmega32__) && UART_BAUDRATE_DOUBLE_SPEED
-	#define UART_BAUD_SELECT(baudRate,xtalCpu) ((xtalCpu / 4 / baudRate - 1) / 2)
-#elif defined(__AVR_ATmega32__)
-	#define UART_BAUD_SELECT(baudRate,xtalCpu) ((xtalCpu / 8 / baudRate - 1) / 2)
-#elif UART_BAUDRATE_DOUBLE_SPEED
+#if UART_BAUDRATE_DOUBLE_SPEED
 	#define UART_BAUD_SELECT(baudRate,xtalCpu) (((float)(xtalCpu))/(((float)(baudRate))*8.0)-1.0+0.5)
 #else
 	#define UART_BAUD_SELECT(baudRate,xtalCpu) (((float)(xtalCpu))/(((float)(baudRate))*16.0)-1.0+0.5)
@@ -417,6 +282,9 @@ LICENSE:
 static void sendchar(char c);
 static unsigned char recchar(void);
 
+static unsigned char UART2_ACTIVE = 0;
+static void initUarts(void);
+static void checkIsUart2(void);
 /*
  * since this bootloader is not linked against the avr-gcc crt1 functions,
  * to reduce the code size, we need to provide our own initialization
@@ -448,6 +316,30 @@ void __jumpMain(void)
 	asm volatile ( "jmp main");												// jump to main()
 }
 
+static void initUarts(void){
+	DDRE &= ~_BV(PINE0); // serial 0 RX
+	PORTE |= _BV(PINE0); // serial 0 RX
+
+	DDRH &= ~_BV(PINH0); // serial 2 RX
+	PORTH |= _BV(PINH0); // serial 2 RX
+
+	UART2_ACT_DDR &= ~(1 << UART2_ACT_PIN);  // set pin as input
+	UART2_ACT_PORT &= ~(1 << UART2_ACT_PIN); // disable pullup
+
+	#if DLED
+		DLED_DDR |= (1 << DLED_PIN);  // set pin as output
+	#endif
+}
+static void checkIsUart2(void){
+  UART2_ACTIVE = UART2_ACT_PINP & (1 << UART2_ACT_PIN); // read pin
+  #if DLED
+		if(UART2_ACTIVE){
+			DLED_PORT |= (1 << DLED_PIN);  // set pin on
+		}else{
+			DLED_PORT &= ~(1 << DLED_PIN);  // set pin off
+		}
+	#endif
+}
 
 //*****************************************************************************
 void delay_ms(unsigned int timedelay)
@@ -466,16 +358,32 @@ void delay_ms(unsigned int timedelay)
  */
 static void sendchar(char c)
 {
-	UART_DATA_REG	=	c;										// prepare transmission
-	while (!(UART_STATUS_REG & (1 << UART_TRANSMIT_COMPLETE)));	// wait until byte sent
-	UART_STATUS_REG |= (1 << UART_TRANSMIT_COMPLETE);			// delete TXCflag
+	if(UART2_ACTIVE)
+		{
+		UART2_DATA_REG	=	c;											// prepare transmission
+		while (!(UART2_STATUS_REG & (1 << UART2_TRANSMIT_COMPLETE)));	// wait until byte sent
+		UART2_STATUS_REG |= (1 << UART2_TRANSMIT_COMPLETE);				// delete TXCflag		
+		}
+	else
+		{	
+		UART_DATA_REG	=	c;										// prepare transmission
+		while (!(UART_STATUS_REG & (1 << UART_TRANSMIT_COMPLETE)));	// wait until byte sent
+		UART_STATUS_REG |= (1 << UART_TRANSMIT_COMPLETE);			// delete TXCflag
+		}
 }
 
 
 //************************************************************************
 static int	Serial_Available(void)
 {
-	return(UART_STATUS_REG & (1 << UART_RECEIVE_COMPLETE));	// wait for data
+	if(UART2_ACTIVE)
+		{
+		return(UART2_STATUS_REG & (1 << UART2_RECEIVE_COMPLETE));	// wait for data	
+		}
+	else
+		{
+		return(UART_STATUS_REG & (1 << UART_RECEIVE_COMPLETE));	// wait for data
+		}
 }
 
 
@@ -485,11 +393,22 @@ static int	Serial_Available(void)
  */
 static unsigned char recchar(void)
 {
-	while (!(UART_STATUS_REG & (1 << UART_RECEIVE_COMPLETE)))
-	{
-		// wait for data
-	}
-	return UART_DATA_REG;
+	if(UART2_ACTIVE)
+		{
+		while (!(UART2_STATUS_REG & (1 << UART2_RECEIVE_COMPLETE)))
+		{
+			// wait for data
+		}
+		return UART2_DATA_REG;			
+		}
+	else
+		{
+		while (!(UART_STATUS_REG & (1 << UART_RECEIVE_COMPLETE)))
+		{
+			// wait for data
+		}
+		return UART_DATA_REG;		
+		}	
 }
 
 #define	MAX_TIME_COUNT	(F_CPU >> 1)
@@ -498,30 +417,60 @@ static unsigned char recchar_timeout(void)
 {
 uint32_t count = 0;
 
-	while (!(UART_STATUS_REG & (1 << UART_RECEIVE_COMPLETE)))
-	{
-		// wait for data
-		count++;
-		if (count > MAX_TIME_COUNT)
+	if(UART2_ACTIVE)
 		{
-		unsigned int	data;
-		#if (FLASHEND > 0x10000)
-			data	=	pgm_read_word_far(0);	//*	get the first word of the user program
-		#else
-			data	=	pgm_read_word_near(0);	//*	get the first word of the user program
-		#endif
-			if (data != 0xffff)					//*	make sure its valid before jumping to it.
+		while (!(UART2_STATUS_REG & (1 << UART2_RECEIVE_COMPLETE)))
 			{
-				asm volatile(
-						"clr	r30		\n\t"
-						"clr	r31		\n\t"
-						"ijmp	\n\t"
-						);
+			// wait for data
+			count++;
+			if (count > MAX_TIME_COUNT)
+				{
+				unsigned int	data;
+				#if (FLASHEND > 0x10000)
+					data	=	pgm_read_word_far(0);	//*	get the first word of the user program
+				#else
+					data	=	pgm_read_word_near(0);	//*	get the first word of the user program
+				#endif
+					if (data != 0xffff)					//*	make sure its valid before jumping to it.
+						{
+						asm volatile(
+								"clr	r30		\n\t"
+								"clr	r31		\n\t"
+								"ijmp	\n\t"
+								);
+						}
+					count	=	0;
+				}
 			}
-			count	=	0;
+		return UART2_DATA_REG;		
 		}
-	}
-	return UART_DATA_REG;
+	else
+		{
+		while (!(UART_STATUS_REG & (1 << UART_RECEIVE_COMPLETE)))
+			{
+			// wait for data
+			count++;
+			if (count > MAX_TIME_COUNT)
+				{
+				unsigned int	data;
+				#if (FLASHEND > 0x10000)
+					data	=	pgm_read_word_far(0);	//*	get the first word of the user program
+				#else
+					data	=	pgm_read_word_near(0);	//*	get the first word of the user program
+				#endif
+					if (data != 0xffff)					//*	make sure its valid before jumping to it.
+						{
+						asm volatile(
+								"clr	r30		\n\t"
+								"clr	r31		\n\t"
+								"ijmp	\n\t"
+								);
+						}
+					count	=	0;
+				}
+			}
+		return UART_DATA_REG;
+		}
 }
 
 //*	for watch dog timer startup
@@ -557,7 +506,6 @@ int main(void)
 	asm volatile ( "ldi	16, %0" :: "i" (RAMEND & 0x0ff) );
 	asm volatile ( "out %0,16" :: "i" (AVR_STACK_POINTER_LO_ADDR) );
 
-#ifdef _FIX_ISSUE_181_
 	//************************************************************************
 	//*	Dec 29,	2011	<MLS> Issue #181, added watch dog timmer support
 	//*	handle the watch dog timer
@@ -576,8 +524,8 @@ int main(void)
 		app_start();
 	}
 	//************************************************************************
-#endif
 
+	
 
 	boot_timer	=	0;
 	boot_state	=	0;
@@ -585,7 +533,8 @@ int main(void)
 #ifdef BLINK_LED_WHILE_WAITING
 //	boot_timeout	=	 90000;		//*	should be about 4 seconds
 //	boot_timeout	=	170000;
-	boot_timeout	=	 20000;		//*	should be about 1 second
+//	boot_timeout	=	 20000;		//*	should be about 1 second
+	boot_timeout	=	 40000;		//*	should be about 1 second
 #else
 	boot_timeout	=	3500000; // 7 seconds , approx 2us per step when optimize "s"
 #endif
@@ -593,52 +542,38 @@ int main(void)
 	 * Branch to bootloader or application code ?
 	 */
 
-#ifndef REMOVE_BOOTLOADER_LED
 	/* PROG_PIN pulled low, indicate with LED that bootloader is active */
 	PROGLED_DDR		|=	(1<<PROGLED_PIN);
 //	PROGLED_PORT	&=	~(1<<PROGLED_PIN);	// active low LED ON
 	PROGLED_PORT	|=	(1<<PROGLED_PIN);	// active high LED ON
 
-#ifdef _DEBUG_WITH_LEDS_
-	for (ii=0; ii<3; ii++)
-	{
-		PROGLED_PORT	&=	~(1<<PROGLED_PIN);	// turn LED off
-		delay_ms(100);
-		PROGLED_PORT	|=	(1<<PROGLED_PIN);	// turn LED on
-		delay_ms(100);
-	}
-#endif
-
-#endif
+	initUarts();
+	delay_ms(100);
+	checkIsUart2();
+	delay_ms(100);
 	/*
 	 * Init UART
 	 * set baudrate and enable USART receiver and transmiter without interrupts
 	 */
-#if UART_BAUDRATE_DOUBLE_SPEED
-	UART_STATUS_REG		|=	(1 <<UART_DOUBLE_SPEED);
-#endif
-	UART_BAUD_RATE_LOW	=	UART_BAUD_SELECT(BAUDRATE,F_CPU);
-	UART_CONTROL_REG	=	(1 << UART_ENABLE_RECEIVER) | (1 << UART_ENABLE_TRANSMITTER);
+	if(UART2_ACTIVE)
+		{
+		#if UART_BAUDRATE_DOUBLE_SPEED
+			UART2_STATUS_REG		|=	(1 <<UART2_DOUBLE_SPEED);
+		#endif
+			UART2_BAUD_RATE_LOW	=	UART_BAUD_SELECT(BAUDRATE,F_CPU);
+			UART2_CONTROL_REG	=	(1 << UART2_ENABLE_RECEIVER) | (1 << UART2_ENABLE_TRANSMITTER);		
+		}
+	else
+		{
+		#if UART_BAUDRATE_DOUBLE_SPEED
+			UART_STATUS_REG		|=	(1 <<UART_DOUBLE_SPEED);
+		#endif
+			UART_BAUD_RATE_LOW	=	UART_BAUD_SELECT(BAUDRATE,F_CPU);
+			UART_CONTROL_REG	=	(1 << UART_ENABLE_RECEIVER) | (1 << UART_ENABLE_TRANSMITTER);
+		}
 
 	asm volatile ("nop");			// wait until port has changed
-
-#ifdef _DEBUG_SERIAL_
-//	delay_ms(500);
-
-	sendchar('s');
-	sendchar('t');
-	sendchar('k');
-//	sendchar('5');
-//	sendchar('0');
-//	sendchar('0');
-	sendchar('v');
-	sendchar('2');
-	sendchar(0x0d);
-	sendchar(0x0a);
-
-	delay_ms(100);
-#endif
-
+	delay_ms(100);	
 	while (boot_state==0)
 	{
 		while ((!(Serial_Available())) && (boot_state == 0))		// wait for data
@@ -675,7 +610,14 @@ int main(void)
 				if (boot_state==1)
 				{
 					boot_state	=	0;
-					c			=	UART_DATA_REG;
+					if(UART2_ACTIVE)
+						{
+						c =	UART2_DATA_REG;
+						}
+					else
+						{
+						c =	UART_DATA_REG;
+						}
 				}
 				else
 				{
@@ -716,22 +658,9 @@ int main(void)
 						break;
 
 					case ST_GET_SEQ_NUM:
-					#ifdef _FIX_ISSUE_505_
 						seqNum			=	c;
 						msgParseState	=	ST_MSG_SIZE_1;
 						checksum		^=	c;
-					#else
-						if ( (c == 1) || (c == seqNum) )
-						{
-							seqNum			=	c;
-							msgParseState	=	ST_MSG_SIZE_1;
-							checksum		^=	c;
-						}
-						else
-						{
-							msgParseState	=	ST_START;
-						}
-					#endif
 						break;
 
 					case ST_MSG_SIZE_1:
@@ -787,66 +716,6 @@ int main(void)
 
 			switch (msgBuffer[0])
 			{
-	#ifndef REMOVE_CMD_SPI_MULTI
-				case CMD_SPI_MULTI:
-					{
-						unsigned char answerByte;
-						unsigned char flag=0;
-
-						if ( msgBuffer[4]== 0x30 )
-						{
-							unsigned char signatureIndex	=	msgBuffer[6];
-
-							if ( signatureIndex == 0 )
-							{
-								answerByte	=	(SIGNATURE_BYTES >> 16) & 0x000000FF;
-							}
-							else if ( signatureIndex == 1 )
-							{
-								answerByte	=	(SIGNATURE_BYTES >> 8) & 0x000000FF;
-							}
-							else
-							{
-								answerByte	=	SIGNATURE_BYTES & 0x000000FF;
-							}
-						}
-						else if ( msgBuffer[4] & 0x50 )
-						{
-						//*	Issue 544: 	stk500v2 bootloader doesn't support reading fuses
-						//*	I cant find the docs that say what these are supposed to be but this was figured out by trial and error
-						//	answerByte	=	boot_lock_fuse_bits_get(GET_LOW_FUSE_BITS);
-						//	answerByte	=	boot_lock_fuse_bits_get(GET_HIGH_FUSE_BITS);
-						//	answerByte	=	boot_lock_fuse_bits_get(GET_EXTENDED_FUSE_BITS);
-							if (msgBuffer[4] == 0x50)
-							{
-								answerByte	=	boot_lock_fuse_bits_get(GET_LOW_FUSE_BITS);
-							}
-							else if (msgBuffer[4] == 0x58)
-							{
-								answerByte	=	boot_lock_fuse_bits_get(GET_HIGH_FUSE_BITS);
-							}
-							else
-							{
-								answerByte	=	0;
-							}
-						}
-						else
-						{
-							answerByte	=	0; // for all others command are not implemented, return dummy value for AVRDUDE happy <Worapoht>
-						}
-						if ( !flag )
-						{
-							msgLength		=	7;
-							msgBuffer[1]	=	STATUS_CMD_OK;
-							msgBuffer[2]	=	0;
-							msgBuffer[3]	=	msgBuffer[4];
-							msgBuffer[4]	=	0;
-							msgBuffer[5]	=	answerByte;
-							msgBuffer[6]	=	STATUS_CMD_OK;
-						}
-					}
-					break;
-	#endif
 				case CMD_SIGN_ON:
 					msgLength		=	11;
 					msgBuffer[1] 	=	STATUS_CMD_OK;
@@ -950,21 +819,6 @@ int main(void)
 					}
 					break;
 
-	#ifndef REMOVE_PROGRAM_LOCK_BIT_SUPPORT
-				case CMD_PROGRAM_LOCK_ISP:
-					{
-						unsigned char lockBits	=	msgBuffer[4];
-
-						lockBits	=	(~lockBits) & 0x3C;	// mask BLBxx bits
-						boot_lock_bits_set(lockBits);		// and program it
-						boot_spm_busy_wait();
-
-						msgLength		=	3;
-						msgBuffer[1]	=	STATUS_CMD_OK;
-						msgBuffer[2]	=	STATUS_CMD_OK;
-					}
-					break;
-	#endif
 				case CMD_CHIP_ERASE_ISP:
 					eraseAddress	=	0;
 					msgLength		=	2;
@@ -1020,25 +874,17 @@ int main(void)
 						}
 						else
 						{
-						//*	issue 543, this should work, It has not been tested.
-					//	#if (!defined(__AVR_ATmega1280__) && !defined(__AVR_ATmega2560__)  && !defined(__AVR_ATmega2561__)  && !defined(__AVR_ATmega1284P__)  && !defined(__AVR_ATmega640__))
-						#if (defined(EEARL) && defined(EEARH)  && defined(EEMWE)  && defined(EEWE)  && defined(EEDR))
+							//*	issue 543, this should work, It has not been tested.
+							uint16_t ii = address >> 1;
 							/* write EEPROM */
-							do {
-								EEARL	=	address;			// Setup EEPROM address
-								EEARH	=	(address >> 8);
-								address++;						// Select next EEPROM byte
-
-								EEDR	=	*p++;				// get byte from buffer
-								EECR	|=	(1<<EEMWE);			// Write data into EEPROM
-								EECR	|=	(1<<EEWE);
-
-								while (EECR & (1<<EEWE));	// Wait for write operation to finish
-								size--;						// Decrease number of bytes to write
-							} while (size);					// Loop until all bytes written
-						#endif
+							while (size) {
+								eeprom_write_byte((uint8_t*)ii, *p++);
+								address+=2;						// Select next EEPROM byte
+								ii++;
+								size--;
+							}
 						}
-							msgLength	=	2;
+						msgLength		=	2;
 						msgBuffer[1]	=	STATUS_CMD_OK;
 					}
 					break;
@@ -1122,57 +968,30 @@ int main(void)
 			sendchar(checksum);
 			seqNum++;
 	
-		#ifndef REMOVE_BOOTLOADER_LED
 			//*	<MLS>	toggle the LED
 			PROGLED_PORT	^=	(1<<PROGLED_PIN);	// active high LED ON
-		#endif
-
 		}
 	}
 
-#ifdef _DEBUG_WITH_LEDS_
-	//*	this is for debugging it can be removed
-	for (ii=0; ii<10; ii++)
-	{
-		PROGLED_PORT	&=	~(1<<PROGLED_PIN);	// turn LED off
-		delay_ms(200);
-		PROGLED_PORT	|=	(1<<PROGLED_PIN);	// turn LED on
-		delay_ms(200);
-	}
-	PROGLED_PORT	&=	~(1<<PROGLED_PIN);	// turn LED off
-#endif
-
-#ifdef _DEBUG_SERIAL_
-	sendchar('j');
-//	sendchar('u');
-//	sendchar('m');
-//	sendchar('p');
-//	sendchar(' ');
-//	sendchar('u');
-//	sendchar('s');
-//	sendchar('r');
-	sendchar(0x0d);
-	sendchar(0x0a);
-
-	delay_ms(100);
-#endif
-
-
-#ifndef REMOVE_BOOTLOADER_LED
 	PROGLED_DDR		&=	~(1<<PROGLED_PIN);	// set to default
 	PROGLED_PORT	&=	~(1<<PROGLED_PIN);	// active low LED OFF
 //	PROGLED_PORT	|=	(1<<PROGLED_PIN);	// active high LED OFf
 	delay_ms(100);							// delay after exit
-#endif
-
 
 	asm volatile ("nop");			// wait until port has changed
 
 	/*
 	 * Now leave bootloader
 	 */
-
-	UART_STATUS_REG	&=	0xfd;
+	if(UART2_ACTIVE)
+		{
+		UART2_STATUS_REG &=	0xfd;
+		}
+	else
+		{
+		UART_STATUS_REG	&=	0xfd;
+		}
+	
 	boot_rww_enable();				// enable application section
 
 
@@ -1240,82 +1059,78 @@ unsigned long	gEepromIndex;
 void	PrintDecInt(int theNumber, int digitCnt);
 
 #ifdef _AVR_CPU_NAME_
-	prog_char	gTextMsg_CPU_Name[]			PROGMEM	=	_AVR_CPU_NAME_;
+	const char	gTextMsg_CPU_Name[]			PROGMEM	=	_AVR_CPU_NAME_;
 #else
-	prog_char	gTextMsg_CPU_Name[]			PROGMEM	=	"UNKNOWN";
+	const char	gTextMsg_CPU_Name[]			PROGMEM	=	"UNKNOWN";
 #endif
 
-	prog_char	gTextMsg_Explorer[]			PROGMEM	=	"Arduino explorer stk500V2 by MLS";
-	prog_char	gTextMsg_Prompt[]			PROGMEM	=	"Bootloader>";
-	prog_char	gTextMsg_HUH[]				PROGMEM	=	"Huh?";
-	prog_char	gTextMsg_COMPILED_ON[]		PROGMEM	=	"Compiled on = ";
-	prog_char	gTextMsg_CPU_Type[]			PROGMEM	=	"CPU Type    = ";
-	prog_char	gTextMsg_AVR_ARCH[]			PROGMEM	=	"__AVR_ARCH__= ";
-	prog_char	gTextMsg_AVR_LIBC[]			PROGMEM	=	"AVR LibC Ver= ";
-	prog_char	gTextMsg_GCC_VERSION[]		PROGMEM	=	"GCC Version = ";
-	prog_char	gTextMsg_CPU_SIGNATURE[]	PROGMEM	=	"CPU ID      = ";
-	prog_char	gTextMsg_FUSE_BYTE_LOW[]	PROGMEM	=	"Low fuse    = ";
-	prog_char	gTextMsg_FUSE_BYTE_HIGH[]	PROGMEM	=	"High fuse   = ";
-	prog_char	gTextMsg_FUSE_BYTE_EXT[]	PROGMEM	=	"Ext fuse    = ";
-	prog_char	gTextMsg_FUSE_BYTE_LOCK[]	PROGMEM	=	"Lock fuse   = ";
-	prog_char	gTextMsg_GCC_DATE_STR[]		PROGMEM	=	__DATE__;
-	prog_char	gTextMsg_AVR_LIBC_VER_STR[]	PROGMEM	=	__AVR_LIBC_VERSION_STRING__;
-	prog_char	gTextMsg_GCC_VERSION_STR[]	PROGMEM	=	__VERSION__;
-	prog_char	gTextMsg_VECTOR_HEADER[]	PROGMEM	=	"V#   ADDR   op code     instruction addr   Interrupt";
-	prog_char	gTextMsg_noVector[]			PROGMEM	=	"no vector";
-	prog_char	gTextMsg_rjmp[]				PROGMEM	=	"rjmp  ";
-	prog_char	gTextMsg_jmp[]				PROGMEM	=	"jmp ";
-	prog_char	gTextMsg_WHAT_PORT[]		PROGMEM	=	"What port:";
-	prog_char	gTextMsg_PortNotSupported[]	PROGMEM	=	"Port not supported";
-	prog_char	gTextMsg_MustBeLetter[]		PROGMEM	=	"Must be a letter";
-	prog_char	gTextMsg_SPACE[]			PROGMEM	=	" ";
-	prog_char	gTextMsg_WriteToEEprom[]	PROGMEM	=	"Writting EE";
-	prog_char	gTextMsg_ReadingEEprom[]	PROGMEM	=	"Reading EE";
-	prog_char	gTextMsg_EEPROMerrorCnt[]	PROGMEM	=	"EE err cnt=";
-	prog_char	gTextMsg_PORT[]				PROGMEM	=	"PORT";
+	const char	gTextMsg_Explorer[]			PROGMEM	=	"Arduino explorer stk500V2 by MLS";
+	const char	gTextMsg_Prompt[]			PROGMEM	=	"Bootloader>";
+	const char	gTextMsg_HUH[]				PROGMEM	=	"Huh?";
+	const char	gTextMsg_COMPILED_ON[]		PROGMEM	=	"Compiled on = ";
+	const char	gTextMsg_CPU_Type[]			PROGMEM	=	"CPU Type    = ";
+	const char	gTextMsg_AVR_ARCH[]			PROGMEM	=	"__AVR_ARCH__= ";
+	const char	gTextMsg_AVR_LIBC[]			PROGMEM	=	"AVR LibC Ver= ";
+	const char	gTextMsg_GCC_VERSION[]		PROGMEM	=	"GCC Version = ";
+	const char	gTextMsg_CPU_SIGNATURE[]	PROGMEM	=	"CPU ID      = ";
+	const char	gTextMsg_FUSE_BYTE_LOW[]	PROGMEM	=	"Low fuse    = ";
+	const char	gTextMsg_FUSE_BYTE_HIGH[]	PROGMEM	=	"High fuse   = ";
+	const char	gTextMsg_FUSE_BYTE_EXT[]	PROGMEM	=	"Ext fuse    = ";
+	const char	gTextMsg_FUSE_BYTE_LOCK[]	PROGMEM	=	"Lock fuse   = ";
+	const char	gTextMsg_GCC_DATE_STR[]		PROGMEM	=	__DATE__;
+	const char	gTextMsg_AVR_LIBC_VER_STR[]	PROGMEM	=	__AVR_LIBC_VERSION_STRING__;
+	const char	gTextMsg_GCC_VERSION_STR[]	PROGMEM	=	__VERSION__;
+	const char	gTextMsg_VECTOR_HEADER[]	PROGMEM	=	"V#   ADDR   op code     instruction addr   Interrupt";
+	const char	gTextMsg_noVector[]			PROGMEM	=	"no vector";
+	const char	gTextMsg_rjmp[]				PROGMEM	=	"rjmp  ";
+	const char	gTextMsg_jmp[]				PROGMEM	=	"jmp ";
+	const char	gTextMsg_WHAT_PORT[]		PROGMEM	=	"What port:";
+	const char	gTextMsg_PortNotSupported[]	PROGMEM	=	"Port not supported";
+	const char	gTextMsg_MustBeLetter[]		PROGMEM	=	"Must be a letter";
+	const char	gTextMsg_SPACE[]			PROGMEM	=	" ";
+	const char	gTextMsg_WriteToEEprom[]	PROGMEM	=	"Writting EE";
+	const char	gTextMsg_ReadingEEprom[]	PROGMEM	=	"Reading EE";
+	const char	gTextMsg_EEPROMerrorCnt[]	PROGMEM	=	"EE err cnt=";
+	const char	gTextMsg_PORT[]				PROGMEM	=	"PORT";
 
 
 //************************************************************************
 //*	Help messages
-	prog_char	gTextMsg_HELP_MSG_0[]		PROGMEM	=	"0=Zero addr";
-	prog_char	gTextMsg_HELP_MSG_QM[]		PROGMEM	=	"?=CPU stats";
-	prog_char	gTextMsg_HELP_MSG_AT[]		PROGMEM	=	"@=EEPROM test";
-	prog_char	gTextMsg_HELP_MSG_B[]		PROGMEM	=	"B=Blink LED";
-	prog_char	gTextMsg_HELP_MSG_E[]		PROGMEM	=	"E=Dump EEPROM";
-	prog_char	gTextMsg_HELP_MSG_F[]		PROGMEM	=	"F=Dump FLASH";
-	prog_char	gTextMsg_HELP_MSG_H[]		PROGMEM	=	"H=Help";
-	prog_char	gTextMsg_HELP_MSG_L[]		PROGMEM	=	"L=List I/O Ports";
-//	prog_char	gTextMsg_HELP_MSG_Q[]		PROGMEM	=	"Q=Quit & jump to user pgm";
-	prog_char	gTextMsg_HELP_MSG_Q[]		PROGMEM	=	"Q=Quit";
-	prog_char	gTextMsg_HELP_MSG_R[]		PROGMEM	=	"R=Dump RAM";
-	prog_char	gTextMsg_HELP_MSG_V[]		PROGMEM	=	"V=show interrupt Vectors";
-	prog_char	gTextMsg_HELP_MSG_Y[]		PROGMEM	=	"Y=Port blink";
+	const char	gTextMsg_HELP_MSG_0[]		PROGMEM	=	"0=Zero addr";
+	const char	gTextMsg_HELP_MSG_QM[]		PROGMEM	=	"?=CPU stats";
+	const char	gTextMsg_HELP_MSG_AT[]		PROGMEM	=	"@=EEPROM test";
+	const char	gTextMsg_HELP_MSG_B[]		PROGMEM	=	"B=Blink LED";
+	const char	gTextMsg_HELP_MSG_E[]		PROGMEM	=	"E=Dump EEPROM";
+	const char	gTextMsg_HELP_MSG_F[]		PROGMEM	=	"F=Dump FLASH";
+	const char	gTextMsg_HELP_MSG_H[]		PROGMEM	=	"H=Help";
+	const char	gTextMsg_HELP_MSG_L[]		PROGMEM	=	"L=List I/O Ports";
+//	const char	gTextMsg_HELP_MSG_Q[]		PROGMEM	=	"Q=Quit & jump to user pgm";
+	const char	gTextMsg_HELP_MSG_Q[]		PROGMEM	=	"Q=Quit";
+	const char	gTextMsg_HELP_MSG_R[]		PROGMEM	=	"R=Dump RAM";
+	const char	gTextMsg_HELP_MSG_V[]		PROGMEM	=	"V=show interrupt Vectors";
+	const char	gTextMsg_HELP_MSG_Y[]		PROGMEM	=	"Y=Port blink";
 
-	prog_char	gTextMsg_END[]				PROGMEM	=	"*";
+	const char	gTextMsg_END[]				PROGMEM	=	"*";
 
 
 //************************************************************************
-void	PrintFromPROGMEM(void *dataPtr, unsigned char offset)
+void	PrintFromPROGMEM(const void *dataPtr, unsigned char offset)
 {
-uint8_t	ii;
 char	theChar;
 
-	ii			=	offset;
-	theChar		=	1;
+	dataPtr		+=	offset;
 
-	while (theChar != 0)
-	{
+	do {
 	#if (FLASHEND > 0x10000)
-		theChar	=	pgm_read_byte_far((uint32_t)dataPtr + ii);
+		theChar	=	pgm_read_byte_far((uint16_t)dataPtr++);
 	#else
-		theChar	=	pgm_read_byte_near((uint32_t)dataPtr + ii);
+		theChar	=	pgm_read_byte_near((uint16_t)dataPtr++);
 	#endif
 		if (theChar != 0)
 		{
 			sendchar(theChar);
 		}
-		ii++;
-	}
+	} while (theChar != 0);
 }
 
 //************************************************************************
@@ -1327,7 +1142,7 @@ void	PrintNewLine(void)
 
 
 //************************************************************************
-void	PrintFromPROGMEMln(void *dataPtr, unsigned char offset)
+void	PrintFromPROGMEMln(const void *dataPtr, unsigned char offset)
 {
 	PrintFromPROGMEM(dataPtr, offset);
 
@@ -1523,7 +1338,7 @@ unsigned char	*ramPtr;
 					break;
 
 				case kDUMP_EEPROM:
-					theValue	=	eeprom_read_byte((void *)myAddressPointer);
+					theValue	=	eeprom_read_byte((uint8_t *)(uint16_t)myAddressPointer);
 					break;
 
 				case kDUMP_RAM:
@@ -1567,9 +1382,9 @@ int		errorCount;
 	PrintNewLine();
 	ii			=	0;
 #if (FLASHEND > 0x10000)
-	while (((theChar = pgm_read_byte_far(gTextMsg_Explorer + ii)) != '*') && (ii < 512))
+	while (((theChar = pgm_read_byte_far(((uint16_t)gTextMsg_Explorer) + ii)) != '*') && (ii < 512))
 #else
-	while (((theChar = pgm_read_byte_near(gTextMsg_Explorer + ii)) != '*') && (ii < 512))
+	while (((theChar = pgm_read_byte_near(((uint16_t)gTextMsg_Explorer) + ii)) != '*') && (ii < 512))
 #endif
 	{
 		eeprom_write_byte((uint8_t *)ii, theChar);
@@ -1592,9 +1407,9 @@ int		errorCount;
 	errorCount	=	0;
 	ii			=	0;
 #if (FLASHEND > 0x10000)
-	while (((theChar = pgm_read_byte_far(gTextMsg_Explorer + ii)) != '*') && (ii < 512))
+	while (((theChar = pgm_read_byte_far((uint16_t)gTextMsg_Explorer + ii)) != '*') && (ii < 512))
 #else
-	while (((theChar = pgm_read_byte_near(gTextMsg_Explorer + ii)) != '*') && (ii < 512))
+	while (((theChar = pgm_read_byte_near((uint16_t)gTextMsg_Explorer + ii)) != '*') && (ii < 512))
 #endif
 	{
 		theEEPROMchar	=	eeprom_read_byte((uint8_t *)ii);
